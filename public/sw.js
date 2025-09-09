@@ -18,6 +18,53 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return
   const url = new URL(request.url)
 
+  // Serve manifest with dynamic "name" based on localStorage mirrored via postMessage (best-effort fallback to default)
+  if (url.pathname === '/manifest.webmanifest') {
+    event.respondWith((async () => {
+      try {
+        const cache = await caches.open(CACHE_NAME)
+        const cached = await cache.match('/manifest.webmanifest')
+        const text = cached ? await cached.text() : null
+        let manifest
+        if (text) {
+          manifest = JSON.parse(text)
+        } else {
+          manifest = {
+            name: 'TOTP Generator',
+            short_name: 'TOTP',
+            start_url: '/',
+            scope: '/',
+            display: 'standalone',
+            theme_color: '#0f172a',
+            background_color: '#0b1220',
+            icons: [ { src: '/vite.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' } ],
+          }
+        }
+        // Attempt to read dynamic name from IndexedDB (mirrored by the app via MessageChannel)
+        const clientList = await self.clients.matchAll({ type: 'window' })
+        let dynamicName = null
+        for (const client of clientList) {
+          try {
+            const msgChan = new MessageChannel()
+            const ask = new Promise((resolve) => {
+              msgChan.port1.onmessage = (event) => resolve(event.data)
+            })
+            client.postMessage({ type: 'GET_PWA_METADATA' }, [msgChan.port2])
+            const data = await Promise.race([ask, new Promise((r) => setTimeout(() => r(null), 50))])
+            if (data && data.name) dynamicName = data.name
+            if (data && data.startUrl) manifest.start_url = data.startUrl
+          } catch {}
+        }
+        if (dynamicName) manifest.name = dynamicName
+        const body = JSON.stringify(manifest)
+        return new Response(body, { headers: { 'Content-Type': 'application/manifest+json' } })
+      } catch {
+        return fetch(request)
+      }
+    })())
+    return
+  }
+
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request).catch(() => caches.match('/index.html'))

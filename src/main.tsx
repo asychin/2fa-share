@@ -12,6 +12,18 @@ if ('serviceWorker' in navigator) {
   })
 }
 
+// If running as installed PWA, redirect to saved start URL if present
+if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) {
+  const savedUrl = localStorage.getItem('pwa_install_start_url')
+  try {
+    if (savedUrl && savedUrl !== window.location.href) {
+      window.location.replace(savedUrl)
+    }
+  } catch {
+    // ignore
+  }
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ChakraProvider value={system}>

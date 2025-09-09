@@ -189,6 +189,22 @@ function App() {
     }
   }, [shareUrl, validSecret])
 
+  useEffect(() => {
+    function onMessage(event: MessageEvent) {
+      if (!event.data || (event.data as { type?: string }).type !== 'GET_PWA_METADATA') return
+      const name = (label && label.trim()) ? label.trim() : 'TOTP'
+      const startUrl = (validSecret && shareUrl) ? shareUrl : window.location.href
+      const ports = (event as MessageEvent & { ports?: MessagePort[] }).ports
+      const port: MessagePort | undefined = Array.isArray(ports) ? ports[0] : undefined
+      if (port) {
+        port.postMessage({ name, startUrl })
+      }
+    }
+    const sw: ServiceWorkerContainer | undefined = (typeof navigator !== 'undefined' ? navigator.serviceWorker : undefined)
+    sw?.addEventListener('message', onMessage)
+    return () => sw?.removeEventListener('message', onMessage)
+  }, [label, validSecret, shareUrl])
+
   const remainingPercent = Math.max(0, Math.min(100, (remaining / period) * 100))
 
   async function handleNativeShare() {
