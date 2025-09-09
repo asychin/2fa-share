@@ -31,7 +31,9 @@ export function ColorModeProvider(props: { children: React.ReactNode }) {
     applyHtmlClass(mode)
     try {
       localStorage.setItem('theme', mode)
-    } catch {}
+    } catch {
+      void 0
+    }
   }, [mode])
 
   useEffect(() => {
@@ -52,12 +54,14 @@ export function ColorModeProvider(props: { children: React.ReactNode }) {
   return <ColorModeContext.Provider value={value}>{props.children}</ColorModeContext.Provider>
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useColorMode() {
   const ctx = useContext(ColorModeContext)
   if (!ctx) throw new Error('useColorMode must be used within ColorModeProvider')
   return ctx
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useColorModeValue<TValue>(light: TValue, dark: TValue): TValue {
   const { colorMode } = useColorMode()
   return colorMode === 'light' ? light : dark
