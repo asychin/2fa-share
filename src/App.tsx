@@ -4,7 +4,11 @@ import * as OTPAuth from 'otpauth'
 import { useColorMode } from './components/ui/color-mode.tsx'
 import { FaGithub, FaShareAlt } from 'react-icons/fa'
 
-const SITE_NAME = import.meta.env.VITE_SITE_NAME || 'TOTP Generator'
+const DEFAULT_NAME = import.meta.env.VITE_SITE_NAME || 'TOTP Generator'
+const THEME_COLOR = import.meta.env.VITE_PWA_THEME_COLOR || '#0f172a'
+const BG_COLOR = import.meta.env.VITE_PWA_BG_COLOR || '#0b1220'
+
+const SITE_NAME = DEFAULT_NAME
 const BASE_URL = (import.meta.env.VITE_BASE_URL as string | undefined) || ''
 
 function absoluteUrl(relative: string) {
@@ -181,6 +185,9 @@ function App() {
 
   useEffect(() => {
     document.title = SITE_NAME
+    // apply theme color from env at runtime
+    const meta = document.querySelector('meta[name="theme-color"]')
+    if (meta) meta.setAttribute('content', THEME_COLOR)
   }, [])
 
   useEffect(() => {
@@ -189,15 +196,31 @@ function App() {
     }
   }, [shareUrl, validSecret])
 
+  // Keep dynamic metadata for PWA install: app name from label/env, colors and start URL
+  useEffect(() => {
+    try {
+      const appName = (label && label.trim()) ? label.trim() : DEFAULT_NAME
+      localStorage.setItem('pwa_install_name', appName)
+      localStorage.setItem('pwa_theme_color', THEME_COLOR)
+      localStorage.setItem('pwa_bg_color', BG_COLOR)
+      if (validSecret && shareUrl) {
+        localStorage.setItem('pwa_install_start_url', shareUrl)
+      }
+    } catch {
+      // ignore
+    }
+  }, [label, validSecret, shareUrl])
+
   useEffect(() => {
     function onMessage(event: MessageEvent) {
       if (!event.data || (event.data as { type?: string }).type !== 'GET_PWA_METADATA') return
-      const name = (label && label.trim()) ? label.trim() : 'TOTP'
+      const name = (label && label.trim()) ? label.trim() : DEFAULT_NAME
+      const shortName = name
       const startUrl = (validSecret && shareUrl) ? shareUrl : window.location.href
       const ports = (event as MessageEvent & { ports?: MessagePort[] }).ports
       const port: MessagePort | undefined = Array.isArray(ports) ? ports[0] : undefined
       if (port) {
-        port.postMessage({ name, startUrl })
+        port.postMessage({ name, shortName, startUrl, themeColor: THEME_COLOR, backgroundColor: BG_COLOR })
       }
     }
     const sw: ServiceWorkerContainer | undefined = (typeof navigator !== 'undefined' ? navigator.serviceWorker : undefined)
@@ -210,11 +233,9 @@ function App() {
   async function handleNativeShare() {
     try {
       if (!navigator.share || !validSecret || !shareUrl) return
-      await navigator.share({
-        title: 'TOTP',
-        text: label ? `${label}${issuer ? ' · ' + issuer : ''}` : 'TOTP secret',
-        url: shareUrl,
-      })
+      const shareTitle = (label && label.trim()) ? label.trim() : `${DEFAULT_NAME} noname`
+      const shareText = issuer && issuer.trim() ? `${shareTitle} · ${issuer.trim()}` : shareTitle
+      await navigator.share({ title: shareTitle, text: shareText, url: shareUrl })
     } catch {
       // user may cancel share
     }
