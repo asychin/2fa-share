@@ -183,24 +183,33 @@ function App() {
     return buildOtpAuthUrl({ secret, label, issuer, period, digits })
   }, [secret, label, issuer, period, digits, validSecret])
 
+  const displayName = useMemo(() => {
+    const suffix = label && label.trim() ? label.trim() : 'noname'
+    return `${SITE_NAME} | ${suffix}`
+  }, [label])
+
   useEffect(() => {
-    document.title = SITE_NAME
+    document.title = displayName
     // apply theme color from env at runtime
     const meta = document.querySelector('meta[name="theme-color"]')
     if (meta) meta.setAttribute('content', THEME_COLOR)
-  }, [])
+  }, [displayName])
 
   useEffect(() => {
     if (validSecret && shareUrl) {
       window.history.replaceState(null, '', shareUrl)
+      try {
+        navigator.serviceWorker?.controller?.postMessage?.({ type: 'SET_PWA_LAUNCH_URL', url: shareUrl })
+      } catch (e) {
+        void e
+      }
     }
   }, [shareUrl, validSecret])
 
   // Keep dynamic metadata for PWA install: app name from label/env, colors and start URL
   useEffect(() => {
     try {
-      const appName = (label && label.trim()) ? label.trim() : DEFAULT_NAME
-      localStorage.setItem('pwa_install_name', appName)
+      localStorage.setItem('pwa_install_name', displayName)
       localStorage.setItem('pwa_theme_color', THEME_COLOR)
       localStorage.setItem('pwa_bg_color', BG_COLOR)
       if (validSecret && shareUrl) {
@@ -209,12 +218,12 @@ function App() {
     } catch {
       // ignore
     }
-  }, [label, validSecret, shareUrl])
+  }, [displayName, validSecret, shareUrl])
 
   useEffect(() => {
     function onMessage(event: MessageEvent) {
       if (!event.data || (event.data as { type?: string }).type !== 'GET_PWA_METADATA') return
-      const name = (label && label.trim()) ? label.trim() : DEFAULT_NAME
+      const name = displayName
       const shortName = name
       const startUrl = (validSecret && shareUrl) ? shareUrl : window.location.href
       const ports = (event as MessageEvent & { ports?: MessagePort[] }).ports
@@ -226,14 +235,14 @@ function App() {
     const sw: ServiceWorkerContainer | undefined = (typeof navigator !== 'undefined' ? navigator.serviceWorker : undefined)
     sw?.addEventListener('message', onMessage)
     return () => sw?.removeEventListener('message', onMessage)
-  }, [label, validSecret, shareUrl])
+  }, [displayName, validSecret, shareUrl])
 
   const remainingPercent = Math.max(0, Math.min(100, (remaining / period) * 100))
 
   async function handleNativeShare() {
     try {
       if (!navigator.share || !validSecret || !shareUrl) return
-      const shareTitle = (label && label.trim()) ? label.trim() : `${DEFAULT_NAME} noname`
+      const shareTitle = displayName
       const shareText = issuer && issuer.trim() ? `${shareTitle} · ${issuer.trim()}` : shareTitle
       await navigator.share({ title: shareTitle, text: shareText, url: shareUrl })
     } catch {

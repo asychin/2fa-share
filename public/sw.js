@@ -1,5 +1,6 @@
 const CACHE_NAME = 'totp-cache-v1'
 const APP_SHELL = ['/', '/index.html']
+const LAUNCH_URL_KEY = '/__pwa_launch_url__'
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -13,34 +14,37 @@ self.addEventListener('activate', (event) => {
   )
 })
 
+// Receive launch URL from the app and persist it
+self.addEventListener('message', (event) => {
+  const data = event.data
+  if (!data || typeof data !== 'object') return
+  if (data.type === 'SET_PWA_LAUNCH_URL' && typeof data.url === 'string') {
+    event.waitUntil((async () => {
+      try {
+        const cache = await caches.open(CACHE_NAME)
+        await cache.put(LAUNCH_URL_KEY, new Response(data.url, { headers: { 'Content-Type': 'text/plain' } }))
+      } catch {}
+    })())
+  }
+})
+
 self.addEventListener('fetch', (event) => {
   const request = event.request
   if (request.method !== 'GET') return
   const url = new URL(request.url)
 
-  // Serve manifest with dynamic "name" based on localStorage mirrored via postMessage (best-effort fallback to default)
+  // Serve manifest dynamically (name, colors, start_url)
   if (url.pathname === '/manifest.webmanifest') {
     event.respondWith((async () => {
       try {
-        const cache = await caches.open(CACHE_NAME)
-        const cached = await cache.match('/manifest.webmanifest')
-        const text = cached ? await cached.text() : null
+        // Always fetch the base manifest from public
         let manifest
-        if (text) {
-          manifest = JSON.parse(text)
-        } else {
-          manifest = {
-            name: 'TOTP Generator',
-            short_name: 'TOTP',
-            start_url: '/',
-            scope: '/',
-            display: 'standalone',
-            theme_color: '#0f172a',
-            background_color: '#0b1220',
-            icons: [ { src: '/vite.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' } ],
-          }
+        try {
+          const res = await fetch('/manifest.webmanifest', { cache: 'no-cache' })
+          manifest = await res.json()
+        } catch {
+          manifest = { display: 'standalone', scope: '/', start_url: '/' }
         }
-        // Attempt to read dynamic name from IndexedDB (mirrored by the app via MessageChannel)
         const clientList = await self.clients.matchAll({ type: 'window' })
         let dynamicName = null
         let dynamicShortName = null
@@ -74,10 +78,25 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
+  // On initial navigation to scope root, redirect to saved launch URL if present
   if (request.mode === 'navigate') {
-    event.respondWith(
-      fetch(request).catch(() => caches.match('/index.html'))
-    )
+    event.respondWith((async () => {
+      try {
+        const cache = await caches.open(CACHE_NAME)
+        const saved = await cache.match(LAUNCH_URL_KEY)
+        if (saved) {
+          const launchUrl = await saved.text()
+          if (launchUrl && url.href !== launchUrl) {
+            return Response.redirect(launchUrl, 302)
+          }
+        }
+      } catch {}
+      try {
+        return await fetch(request)
+      } catch {
+        return caches.match('/index.html')
+      }
+    })())
     return
   }
 
