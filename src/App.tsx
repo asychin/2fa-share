@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Box, Center, Container, Heading, HStack, Icon, IconButton, Input, Link, Stack, Text, VStack, Clipboard, Progress, QrCode, Switch } from '@chakra-ui/react'
 import * as OTPAuth from 'otpauth'
 import { useColorMode } from './components/ui/color-mode.tsx'
-import { FaGithub } from 'react-icons/fa'
+import { FaGithub, FaShareAlt } from 'react-icons/fa'
 
 const SITE_NAME = import.meta.env.VITE_SITE_NAME || 'TOTP Generator'
 const BASE_URL = (import.meta.env.VITE_BASE_URL as string | undefined) || ''
@@ -16,13 +16,76 @@ function absoluteUrl(relative: string) {
   }
 }
 
+function tryParseOtpauth(otpauth: string): Partial<{ secret: string; label: string; issuer: string; period: number; digits: number }> | null {
+  try {
+    if (!otpauth.startsWith('otpauth://')) return null
+    const url = new URL(otpauth)
+    const rawLabel = decodeURIComponent(url.pathname.replace(/^\//, ''))
+    const search = url.searchParams
+    const secret = search.get('secret') || undefined
+    if (!secret) return null
+    const issuer = search.get('issuer') || undefined
+    const period = search.get('period') ? Number(search.get('period')) : undefined
+    const digits = search.get('digits') ? Number(search.get('digits')) : undefined
+    return {
+      secret,
+      label: rawLabel || 'TOTP',
+      issuer: issuer || '',
+      period: period ?? undefined,
+      digits: digits ?? undefined,
+    }
+  } catch {
+    return null
+  }
+}
+
 function parseParams(): { secret?: string; label?: string; issuer?: string; period?: number; digits?: number } {
   const url = new URL(window.location.href)
-  const secret = url.searchParams.get('secret') || undefined
-  const label = url.searchParams.get('label') || undefined
-  const issuer = url.searchParams.get('issuer') || undefined
-  const period = Number(url.searchParams.get('period') || '30')
-  const digits = Number(url.searchParams.get('digits') || '6')
+  // Regular query params used by the app
+  let secret = url.searchParams.get('secret') || undefined
+  let label = url.searchParams.get('label') || undefined
+  let issuer = url.searchParams.get('issuer') || undefined
+  let period = Number(url.searchParams.get('period') || '30')
+  let digits = Number(url.searchParams.get('digits') || '6')
+
+  // Web Share Target (GET) params: url/text/title
+  const sharedUrl = url.searchParams.get('url') || undefined
+  const sharedText = url.searchParams.get('text') || undefined
+
+  // Prefer explicit app params; if missing, try to derive from share target
+  if (!secret) {
+    // Try otpauth in shared URL
+    if (sharedUrl) {
+      const parsed = tryParseOtpauth(sharedUrl)
+      if (parsed?.secret) {
+        secret = parsed.secret
+        if (parsed.label) label = parsed.label
+        if (parsed.issuer) issuer = parsed.issuer
+        if (parsed.period) period = parsed.period
+        if (parsed.digits) digits = parsed.digits
+      }
+    }
+    // Try otpauth inside shared text or extract secret=...
+    if (!secret && sharedText) {
+      const matchOtpauth = sharedText.match(/otpauth:\/\/[^\s]+/)
+      if (matchOtpauth) {
+        const parsed = tryParseOtpauth(matchOtpauth[0])
+        if (parsed?.secret) {
+          secret = parsed.secret
+          if (parsed.label) label = parsed.label
+          if (parsed.issuer) issuer = parsed.issuer
+          if (parsed.period) period = parsed.period
+          if (parsed.digits) digits = parsed.digits
+        }
+      } else {
+        const secretMatch = sharedText.match(/secret=([A-Z2-7]+=*)/i)
+        if (secretMatch) {
+          secret = secretMatch[1]
+        }
+      }
+    }
+  }
+
   return { secret, label, issuer, period, digits }
 }
 
@@ -128,13 +191,26 @@ function App() {
 
   const remainingPercent = Math.max(0, Math.min(100, (remaining / period) * 100))
 
+  async function handleNativeShare() {
+    try {
+      if (!navigator.share || !validSecret || !shareUrl) return
+      await navigator.share({
+        title: 'TOTP',
+        text: label ? `${label}${issuer ? ' · ' + issuer : ''}` : 'TOTP secret',
+        url: shareUrl,
+      })
+    } catch {
+      // user may cancel share
+    }
+  }
+
   return (
     <Box minH="100dvh" w="100%" bg="bg.canvas" px={4} display="flex" flexDir="column">
       <Center flex="1">
-        <Container py={8} maxW="md">
-          <Stack gap={6}>
-            <HStack justify="space-between" align="center">
-              <Heading size="lg">TOTP Generator</Heading>
+        <Container py={6} maxW={{ base: 'sm', md: 'md' }}>
+          <Stack gap={5}>
+            <HStack justify="space-between" align="center" wrap="wrap" gap={3}>
+              <Heading size={{ base: 'md', md: 'lg' }}>TOTP Generator</Heading>
               <HStack gap={3} align="center">
                 <Text color="fg.muted">Theme:</Text>
                 <Switch.Root onCheckedChange={() => toggleColorMode()} size="sm" colorPalette="teal">
@@ -148,58 +224,65 @@ function App() {
             </HStack>
             <Text color="fg.muted" textAlign="center">Paste a Base32 secret. The link and QR are generated automatically. No database is used.</Text>
 
-            <Stack p={4} gap={4} borderWidth="1px" borderRadius="md">
+            <Stack p={4} gap={3} borderWidth="1px" borderRadius="md">
               <Input placeholder="Secret (Base32)" value={secret} onChange={(e) => setSecret(e.target.value)} />
-              <HStack>
+              <Stack direction={{ base: 'column', sm: 'row' }} gap={3}>
                 <Input placeholder="Label" value={label} onChange={(e) => setLabel(e.target.value)} />
                 <Input placeholder="Issuer" value={issuer} onChange={(e) => setIssuer(e.target.value)} />
-              </HStack>
-              <HStack>
+              </Stack>
+              <Stack direction={{ base: 'column', sm: 'row' }} gap={3}>
                 <Input type="number" min={10} max={120} step={1} placeholder="Period (sec)" value={period} onChange={(e) => setPeriod(Number(e.target.value || 30))} />
                 <Input type="number" min={4} max={10} step={1} placeholder="Digits" value={digits} onChange={(e) => setDigits(Number(e.target.value || 6))} />
-              </HStack>
+              </Stack>
             </Stack>
 
             <Stack p={4} gap={4} align="center" borderWidth="1px" borderRadius="md">
               <Text fontWeight="medium">Status: {validSecret ? 'valid secret' : 'invalid secret'}</Text>
               {validSecret && (
                 <>
-                  <Heading size="2xl" letterSpacing={4}>{code || '— — — — — —'}</Heading>
+                  <Heading size={{ base: 'xl', md: '2xl' }} letterSpacing={4}>{code || '— — — — — —'}</Heading>
                   <Text color="fg.muted">updates in {remaining}s</Text>
                   <Progress.Root w="full" value={remainingPercent} colorPalette="teal" variant="subtle">
                     <Progress.Track borderRadius="full">
                       <Progress.Range />
                     </Progress.Track>
                   </Progress.Root>
-                  <QrCode.Root value={otpauthUrl} size="xl">
+                  <QrCode.Root value={otpauthUrl} size={{ base: 'md', md: 'xl' }}>
                     <QrCode.Frame>
                       <QrCode.Pattern />
                     </QrCode.Frame>
                   </QrCode.Root>
                   <VStack w="full" gap={3}>
                     <Clipboard.Root value={shareUrl}>
-                      <HStack w="full">
+                      <HStack w="full" gap={2} align="center">
                         <Clipboard.Input asChild>
-                          <Input readOnly value={shareUrl} />
+                          <Input readOnly value={shareUrl} flex="1" minW={0} />
                         </Clipboard.Input>
-                        <Clipboard.Trigger asChild>
-                          <IconButton aria-label="Copy link" variant="surface" size="sm">
-                            <Clipboard.Indicator />
+                        <HStack gap={2} w="96px" justify="flex-start" flexShrink={0}>
+                          <Clipboard.Trigger asChild>
+                            <IconButton aria-label="Copy link" variant="surface" size="sm">
+                              <Clipboard.Indicator />
+                            </IconButton>
+                          </Clipboard.Trigger>
+                          <IconButton aria-label="Share" variant="surface" size="sm" onClick={handleNativeShare} disabled={!navigator.share}>
+                            <FaShareAlt />
                           </IconButton>
-                        </Clipboard.Trigger>
+                        </HStack>
                       </HStack>
                     </Clipboard.Root>
 
                     <Clipboard.Root value={otpauthUrl}>
-                      <HStack w="full">
+                      <HStack w="full" gap={2} align="center">
                         <Clipboard.Input asChild>
-                          <Input readOnly value={otpauthUrl} />
+                          <Input readOnly value={otpauthUrl} flex="1" minW={0} />
                         </Clipboard.Input>
-                        <Clipboard.Trigger asChild>
-                          <IconButton aria-label="Copy otpauth" variant="surface" size="sm">
-                            <Clipboard.Indicator />
-                          </IconButton>
-                        </Clipboard.Trigger>
+                        <HStack gap={2} w="96px" justify="flex-start" flexShrink={0}>
+                          <Clipboard.Trigger asChild>
+                            <IconButton aria-label="Copy otpauth" variant="surface" size="sm">
+                              <Clipboard.Indicator />
+                            </IconButton>
+                          </Clipboard.Trigger>
+                        </HStack>
                       </HStack>
                     </Clipboard.Root>
                   </VStack>
