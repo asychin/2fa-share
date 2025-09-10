@@ -1,4 +1,4 @@
-const CACHE_NAME = 'totp-cache-v1'
+const CACHE_NAME = 'totp-cache-v2'
 const APP_SHELL = ['/', '/index.html']
 const LAUNCH_URL_KEY = '/__pwa_launch_url__'
 
@@ -23,6 +23,14 @@ self.addEventListener('message', (event) => {
       try {
         const cache = await caches.open(CACHE_NAME)
         await cache.put(LAUNCH_URL_KEY, new Response(data.url, { headers: { 'Content-Type': 'text/plain' } }))
+      } catch {}
+    })())
+  }
+  if (data.type === 'CLEAR_PWA_LAUNCH_URL') {
+    event.waitUntil((async () => {
+      try {
+        const cache = await caches.open(CACHE_NAME)
+        await cache.delete(LAUNCH_URL_KEY)
       } catch {}
     })())
   }
@@ -78,23 +86,13 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // On initial navigation to scope root, redirect to saved launch URL if present
+  // On navigation, serve network first with fallback to cache. Do NOT redirect.
   if (request.mode === 'navigate') {
     event.respondWith((async () => {
       try {
-        const cache = await caches.open(CACHE_NAME)
-        const saved = await cache.match(LAUNCH_URL_KEY)
-        if (saved) {
-          const launchUrl = await saved.text()
-          if (launchUrl && url.href !== launchUrl) {
-            return Response.redirect(launchUrl, 302)
-          }
-        }
-      } catch {}
-      try {
         return await fetch(request)
       } catch {
-        return caches.match('/index.html')
+        return (await caches.match('/index.html')) || Response.error()
       }
     })())
     return

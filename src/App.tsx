@@ -196,10 +196,21 @@ function App() {
   }, [displayName])
 
   useEffect(() => {
+    const isStandalone = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches
     if (validSecret && shareUrl) {
       window.history.replaceState(null, '', shareUrl)
       try {
-        navigator.serviceWorker?.controller?.postMessage?.({ type: 'SET_PWA_LAUNCH_URL', url: shareUrl })
+        if (isStandalone) {
+          navigator.serviceWorker?.controller?.postMessage?.({ type: 'SET_PWA_LAUNCH_URL', url: shareUrl })
+        } else {
+          navigator.serviceWorker?.controller?.postMessage?.({ type: 'CLEAR_PWA_LAUNCH_URL' })
+        }
+      } catch (e) {
+        void e
+      }
+    } else {
+      try {
+        navigator.serviceWorker?.controller?.postMessage?.({ type: 'CLEAR_PWA_LAUNCH_URL' })
       } catch (e) {
         void e
       }
@@ -283,10 +294,19 @@ function App() {
             </Stack>
 
             <Stack p={4} gap={4} align="center" borderWidth="1px" borderRadius="md">
-              <Text fontWeight="medium">Status: {validSecret ? 'valid secret' : 'invalid secret'}</Text>
+              <Text fontWeight="medium">Status: {validSecret ? 'valid secret' : 'Paste a secret'}</Text>
               {validSecret && (
                 <>
-                  <Heading size={{ base: 'xl', md: '2xl' }} letterSpacing={4}>{code || '— — — — — —'}</Heading>
+                  <Clipboard.Root value={code}>
+                    <HStack w="full" gap={2} align="center">
+                      <Heading size={{ base: 'xl', md: '2xl' }} letterSpacing={4}>{code || '— — — — — —'}</Heading>
+                      <Clipboard.Trigger asChild>
+                        <IconButton aria-label="Copy code" variant="surface" size="sm">
+                          <Clipboard.Indicator />
+                        </IconButton>
+                      </Clipboard.Trigger>
+                    </HStack>
+                  </Clipboard.Root>
                   <Text color="fg.muted">updates in {remaining}s</Text>
                   <Progress.Root w="full" value={remainingPercent} colorPalette="teal" variant="subtle">
                     <Progress.Track borderRadius="full">
