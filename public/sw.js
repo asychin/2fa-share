@@ -1,11 +1,35 @@
-const CACHE_NAME = 'totp-cache-v2'
-const APP_SHELL = ['/', '/index.html']
+const CACHE_NAME = 'totp-cache-v3'
+const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icons/logo.png', '/icons/favicon.ico']
 const LAUNCH_URL_KEY = '/__pwa_launch_url__'
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting())
-  )
+  event.waitUntil((async () => {
+    try {
+      const cache = await caches.open(CACHE_NAME)
+      await cache.addAll(APP_SHELL)
+      // Fetch current index.html and precache referenced JS/CSS assets
+      const res = await fetch('/index.html', { cache: 'no-cache' })
+      if (res.ok) {
+        const html = await res.text()
+        const assetUrls = new Set()
+        const scriptRegex = /<script[^>]+src=\"([^\"]+)\"/g
+        const linkRegex = /<link[^>]+href=\"([^\"]+)\"/g
+        let m
+        while ((m = scriptRegex.exec(html)) !== null) {
+          const url = m[1]
+          if (url.startsWith('/assets/')) assetUrls.add(url)
+        }
+        while ((m = linkRegex.exec(html)) !== null) {
+          const url = m[1]
+          if (url.startsWith('/assets/')) assetUrls.add(url)
+        }
+        if (assetUrls.size) {
+          await cache.addAll(Array.from(assetUrls))
+        }
+      }
+    } catch {}
+    await self.skipWaiting()
+  })())
 })
 
 self.addEventListener('activate', (event) => {
@@ -63,6 +87,12 @@ self.addEventListener('fetch', (event) => {
         return (await caches.match('/index.html')) || Response.error()
       }
     })())
+    return
+  }
+
+  // Cache-first for static assets; otherwise network with runtime cache
+  if (url.pathname.startsWith('/assets/') || url.pathname.startsWith('/icons/')) {
+    event.respondWith((async () => (await caches.match(request)) || fetch(request))())
     return
   }
 
