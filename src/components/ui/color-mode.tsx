@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { idbGet, idbSet } from '../../utils/storage.ts'
 
 export type ColorMode = 'light' | 'dark'
 
@@ -23,14 +24,24 @@ function applyHtmlClass(mode: ColorMode) {
 
 export function ColorModeProvider(props: { children: React.ReactNode }) {
   const [mode, setMode] = useState<ColorMode>(() => {
-    const saved = typeof window !== 'undefined' ? (localStorage.getItem('theme') as ColorMode | null) : null
-    return saved ?? getSystemMode()
+    return getSystemMode()
   })
+
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const saved = (await idbGet<ColorMode>('theme'))
+        if (saved) setMode(saved)
+      } catch {
+        void 0
+      }
+    })()
+  }, [])
 
   useEffect(() => {
     applyHtmlClass(mode)
     try {
-      localStorage.setItem('theme', mode)
+      void idbSet('theme', mode)
     } catch {
       void 0
     }
@@ -39,8 +50,9 @@ export function ColorModeProvider(props: { children: React.ReactNode }) {
   useEffect(() => {
     const mql = window.matchMedia('(prefers-color-scheme: dark)')
     const handler = () => {
-      const saved = localStorage.getItem('theme') as ColorMode | null
-      if (!saved) setMode(getSystemMode())
+      idbGet<ColorMode>('theme').then((saved) => {
+        if (!saved) setMode(getSystemMode())
+      }).catch(() => void 0)
     }
     mql.addEventListener('change', handler)
     return () => mql.removeEventListener('change', handler)

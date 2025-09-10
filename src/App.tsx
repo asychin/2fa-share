@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Box, Center, Container, Heading, HStack, Icon, IconButton, Input, Link, Stack, Text, VStack, Clipboard, Progress, QrCode, Switch } from '@chakra-ui/react'
+import { Box, Center, Container, Heading, HStack, Icon, IconButton, Input, Link, Stack, Text, VStack, Clipboard, Progress, QrCode, Switch, Image } from '@chakra-ui/react'
 import * as OTPAuth from 'otpauth'
 import { useColorMode } from './components/ui/color-mode.tsx'
-import { FaGithub, FaShareAlt } from 'react-icons/fa'
+import { FaGithub, FaShareAlt, FaRegLightbulb } from 'react-icons/fa'
+import { idbSet } from './utils/storage.ts'
 
 const DEFAULT_NAME = import.meta.env.VITE_SITE_NAME || 'TOTP Generator'
 const THEME_COLOR = import.meta.env.VITE_PWA_THEME_COLOR || '#0f172a'
@@ -220,11 +221,11 @@ function App() {
   // Keep dynamic metadata for PWA install: app name from label/env, colors and start URL
   useEffect(() => {
     try {
-      localStorage.setItem('pwa_install_name', displayName)
-      localStorage.setItem('pwa_theme_color', THEME_COLOR)
-      localStorage.setItem('pwa_bg_color', BG_COLOR)
+      void idbSet('pwa_install_name', displayName)
+      void idbSet('pwa_theme_color', THEME_COLOR)
+      void idbSet('pwa_bg_color', BG_COLOR)
       if (validSecret && shareUrl) {
-        localStorage.setItem('pwa_install_start_url', shareUrl)
+        void idbSet('pwa_install_start_url', shareUrl)
       }
     } catch {
       // ignore
@@ -267,12 +268,15 @@ function App() {
         <Container py={6} maxW={{ base: 'sm', md: 'md' }}>
           <Stack gap={5}>
             <HStack justify="space-between" align="center" wrap="wrap" gap={3}>
-              <Heading size={{ base: 'md', md: 'lg' }}>TOTP Generator</Heading>
+              <HStack align="center" gap={2}>
+                <Image src="/icons/logo.png" alt="TOTP logo" boxSize={{ base: '18', md: '24' }} />
+                <Heading size={{ base: 'md', md: 'lg' }}>Generator</Heading>
+              </HStack>
               <HStack gap={3} align="center">
-                <Text color="fg.muted">Theme:</Text>
+                <Icon as={FaRegLightbulb} color="fg.muted" boxSize="5" />
                 <Switch.Root onCheckedChange={() => toggleColorMode()} size="sm" colorPalette="teal">
                   <Switch.HiddenInput />
-                  <Switch.Control>
+                  <Switch.Control transform="rotate(90deg)" transformOrigin="center">
                     <Switch.Thumb />
                   </Switch.Control>
                   <Switch.Label srOnly>Theme</Switch.Label>

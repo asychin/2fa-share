@@ -8,7 +8,8 @@
   "theme_color": "#0f172a",
   "background_color": "#0b1220",
   "icons": [
-    { "src": "/vite.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+    { "src": "/icons/logo.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icons/favicon.ico", "sizes": "64x64 32x32 16x16", "type": "image/x-icon" }
   ],
   "share_target": {
     "action": "/",

@@ -5,6 +5,7 @@ import App from './App.tsx'
 import { ChakraProvider } from '@chakra-ui/react'
 import { ColorModeProvider } from './components/ui/color-mode.tsx'
 import system from './theme.ts'
+import { idbGet } from './utils/storage.ts'
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -12,24 +13,28 @@ if ('serviceWorker' in navigator) {
   })
 }
 
-// If running as installed PWA, redirect to saved start URL if present
-if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) {
-  const savedUrl = localStorage.getItem('pwa_install_start_url')
-  try {
-    if (savedUrl && savedUrl !== window.location.href) {
-      window.location.replace(savedUrl)
+async function bootstrap() {
+  if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) {
+    try {
+      const savedUrl = await idbGet<string>('pwa_install_start_url')
+      if (savedUrl && savedUrl !== window.location.href) {
+        window.location.replace(savedUrl)
+        return
+      }
+    } catch {
+      // ignore
     }
-  } catch {
-    // ignore
   }
+
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <ChakraProvider value={system}>
+        <ColorModeProvider>
+          <App />
+        </ColorModeProvider>
+      </ChakraProvider>
+    </StrictMode>,
+  )
 }
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <ChakraProvider value={system}>
-      <ColorModeProvider>
-        <App />
-      </ColorModeProvider>
-    </ChakraProvider>
-  </StrictMode>,
-)
+void bootstrap()
