@@ -21,6 +21,17 @@ function absoluteUrl(relative: string) {
   }
 }
 
+function tryPostSW(message: unknown) {
+  try {
+    // Post to active controller if present; otherwise try active registration
+    if (navigator.serviceWorker?.controller) {
+      navigator.serviceWorker.controller.postMessage(message)
+    } else {
+      navigator.serviceWorker?.getRegistration?.().then((reg) => reg?.active?.postMessage(message)).catch(() => {})
+    }
+  } catch {}
+}
+
 function tryParseOtpauth(otpauth: string): Partial<{ secret: string; label: string; issuer: string; period: number; digits: number }> | null {
   try {
     if (!otpauth.startsWith('otpauth://')) return null
@@ -72,7 +83,7 @@ function parseParams(): { secret?: string; label?: string; issuer?: string; peri
     }
     // Try otpauth inside shared text or extract secret=...
     if (!secret && sharedText) {
-      const matchOtpauth = sharedText.match(/otpauth:\/\/[^\s]+/)
+      const matchOtpauth = sharedText.match(/otpauth:\/\/[\^?\s]+/)
       if (matchOtpauth) {
         const parsed = tryParseOtpauth(matchOtpauth[0])
         if (parsed?.secret) {
@@ -191,30 +202,28 @@ function App() {
 
   useEffect(() => {
     document.title = displayName
-    // apply theme color from env at runtime
     const meta = document.querySelector('meta[name="theme-color"]')
     if (meta) meta.setAttribute('content', THEME_COLOR)
+    // iOS web app title from .env
+    let appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]')
+    if (!appleTitle) {
+      appleTitle = document.createElement('meta')
+      appleTitle.setAttribute('name', 'apple-mobile-web-app-title')
+      document.head.appendChild(appleTitle)
+    }
+    appleTitle.setAttribute('content', SITE_NAME)
   }, [displayName])
 
   useEffect(() => {
-    const isStandalone = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches
     if (validSecret && shareUrl) {
       window.history.replaceState(null, '', shareUrl)
-      try {
-        if (isStandalone) {
-          navigator.serviceWorker?.controller?.postMessage?.({ type: 'SET_PWA_LAUNCH_URL', url: shareUrl })
-        } else {
-          navigator.serviceWorker?.controller?.postMessage?.({ type: 'CLEAR_PWA_LAUNCH_URL' })
-        }
-      } catch (e) {
-        void e
-      }
+    }
+    // Inform SW so it can expose dynamic manifest fields
+    tryPostSW({ type: 'SET_PWA_NAME', name: SITE_NAME })
+    if (validSecret && shareUrl) {
+      tryPostSW({ type: 'SET_PWA_LAUNCH_URL', url: shareUrl })
     } else {
-      try {
-        navigator.serviceWorker?.controller?.postMessage?.({ type: 'CLEAR_PWA_LAUNCH_URL' })
-      } catch (e) {
-        void e
-      }
+      tryPostSW({ type: 'CLEAR_PWA_LAUNCH_URL' })
     }
   }, [shareUrl, validSecret])
 
@@ -230,23 +239,6 @@ function App() {
     } catch {
       // ignore
     }
-  }, [displayName, validSecret, shareUrl])
-
-  useEffect(() => {
-    function onMessage(event: MessageEvent) {
-      if (!event.data || (event.data as { type?: string }).type !== 'GET_PWA_METADATA') return
-      const name = displayName
-      const shortName = name
-      const startUrl = (validSecret && shareUrl) ? shareUrl : window.location.href
-      const ports = (event as MessageEvent & { ports?: MessagePort[] }).ports
-      const port: MessagePort | undefined = Array.isArray(ports) ? ports[0] : undefined
-      if (port) {
-        port.postMessage({ name, shortName, startUrl, themeColor: THEME_COLOR, backgroundColor: BG_COLOR })
-      }
-    }
-    const sw: ServiceWorkerContainer | undefined = (typeof navigator !== 'undefined' ? navigator.serviceWorker : undefined)
-    sw?.addEventListener('message', onMessage)
-    return () => sw?.removeEventListener('message', onMessage)
   }, [displayName, validSecret, shareUrl])
 
   const remainingPercent = Math.max(0, Math.min(100, (remaining / period) * 100))
@@ -265,7 +257,7 @@ function App() {
   return (
     <Box minH="100dvh" w="100%" bg="bg.canvas" px={4} display="flex" flexDir="column">
       <Center flex="1">
-        <Container py={6} maxW={{ base: 'sm', md: 'md' }}>
+          <Container py={6} maxW={{ base: 'sm', md: 'md' }}>
           <Stack gap={5}>
             <HStack justify="space-between" align="center" wrap="wrap" gap={3}>
               <HStack align="center" gap={2}>

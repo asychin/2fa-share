@@ -1,13 +1,15 @@
 const CACHE_NAME = 'totp-cache-v3'
 const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icons/logo.png', '/icons/favicon.ico']
 const LAUNCH_URL_KEY = '/__pwa_launch_url__'
+const BASE_MANIFEST_KEY = '/__base_manifest__'
+const NAME_KEY = '/__pwa_name__'
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
     try {
       const cache = await caches.open(CACHE_NAME)
       await cache.addAll(APP_SHELL)
-      // Fetch current index.html and precache referenced JS/CSS assets
+      // Precache assets listed in index.html
       const res = await fetch('/index.html', { cache: 'no-cache' })
       if (res.ok) {
         const html = await res.text()
@@ -27,6 +29,14 @@ self.addEventListener('install', (event) => {
           await cache.addAll(Array.from(assetUrls))
         }
       }
+      // Cache base manifest for later dynamic serving (avoid recursive fetch during intercept)
+      try {
+        const mres = await fetch('/manifest.webmanifest', { cache: 'no-cache' })
+        if (mres.ok) {
+          const text = await mres.text()
+          await cache.put(BASE_MANIFEST_KEY, new Response(text, { headers: { 'Content-Type': 'application/manifest+json' } }))
+        }
+      } catch {}
     } catch {}
     await self.skipWaiting()
   })())
@@ -38,7 +48,7 @@ self.addEventListener('activate', (event) => {
   )
 })
 
-// Receive launch URL from the app and persist it
+// Receive launch URL and app name from the app and persist it
 self.addEventListener('message', (event) => {
   const data = event.data
   if (!data || typeof data !== 'object') return
@@ -58,12 +68,50 @@ self.addEventListener('message', (event) => {
       } catch {}
     })())
   }
+  if (data.type === 'SET_PWA_NAME' && typeof data.name === 'string') {
+    event.waitUntil((async () => {
+      try {
+        const cache = await caches.open(CACHE_NAME)
+        await cache.put(NAME_KEY, new Response(data.name, { headers: { 'Content-Type': 'text/plain' } }))
+      } catch {}
+    })())
+  }
 })
 
 self.addEventListener('fetch', (event) => {
   const request = event.request
   if (request.method !== 'GET') return
   const url = new URL(request.url)
+
+  // Dynamic manifest: override start_url and name using stored values
+  if (url.pathname === '/manifest.webmanifest') {
+    event.respondWith((async () => {
+      try {
+        const cache = await caches.open(CACHE_NAME)
+        const baseRes = await cache.match(BASE_MANIFEST_KEY)
+        let manifest = {}
+        if (baseRes) {
+          try { manifest = await baseRes.json() } catch { manifest = {} }
+        }
+        // Read stored launch URL and name
+        const launchRes = await cache.match(LAUNCH_URL_KEY)
+        const nameRes = await cache.match(NAME_KEY)
+        const startUrl = launchRes ? (await launchRes.text()).trim() : ''
+        const name = nameRes ? (await nameRes.text()).trim() : ''
+        if (startUrl) manifest.start_url = startUrl
+        if (name) {
+          manifest.name = name
+          manifest.short_name = name
+        }
+        const body = JSON.stringify(manifest)
+        return new Response(body, { headers: { 'Content-Type': 'application/manifest+json' } })
+      } catch {
+        // Fallback to network
+        try { return await fetch(request) } catch { return new Response('{}', { headers: { 'Content-Type': 'application/manifest+json' } }) }
+      }
+    })())
+    return
+  }
 
   // Serve the stored launch URL for the app to read at boot
   if (url.pathname === LAUNCH_URL_KEY) {
