@@ -1,69 +1,45 @@
-# React + TypeScript + Vite
+# TOTP Generator (PWA)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+[![React](https://img.shields.io/badge/React-20232A?logo=react&logoColor=61DAFB)](https://react.dev) [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=fff)](https://www.typescriptlang.org/) [![Vite](https://img.shields.io/badge/Vite-646CFF?logo=vite&logoColor=fff)](https://vitejs.dev/) [![Chakra UI](https://img.shields.io/badge/Chakra%20UI-319795?logo=chakraui&logoColor=fff)](https://chakra-ui.com/) [![PWA](https://img.shields.io/badge/PWA-5A0FC8?logo=pwa&logoColor=fff)](https://web.dev/progressive-web-apps/) [![Vercel](https://img.shields.io/badge/Vercel-000?logo=vercel&logoColor=fff)](https://vercel.com/)
 
-Currently, two official plugins are available:
+A tiny, privacy-friendly TOTP (Time‑based One‑Time Password) generator. Paste a Base32 secret to instantly get rotating verification codes, a shareable link, and a QR code. Everything runs in your browser — no backend.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+> Add your screenshot here.
 
-## Expanding the ESLint configuration
+## Features
+- Client‑side only: codes are generated locally (no data sent to a server)
+- Paste a Base32 secret and get 6/8‑digit codes with a progress timer
+- Shareable URL and QR code (compatible with authenticator apps)
+- Light/Dark theme with persistent preference
+- Installable PWA with offline support
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      ...tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      ...tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      ...tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Quick start
+```bash
+npm i
+npm run dev
+# build & preview
+npm run build
+npm run preview
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Configuration (optional)
+- `VITE_SITE_NAME`: App display name (defaults to "TOTP Generator")
+- `VITE_PWA_THEME_COLOR`: Theme color for the PWA
+- `VITE_PWA_BG_COLOR`: Background color for the PWA
+- `VITE_BASE_URL`: Absolute base URL for generated links (fallbacks to current origin)
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## How it works
+- Uses `otpauth` to generate TOTP codes entirely in the browser
+- Uses IndexedDB only for UI/PWA metadata (theme, install hints); secrets are not stored
+- Share URLs include the secret in the query string for portability — share cautiously
 
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## Tech stack
+- React + TypeScript + Vite
+- Chakra UI v3
+- Service Worker (PWA)
+
+## Deploy with Vercel
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/asychin/2fa-share)
+
+## Deployment
+The app is a static site. Deploy the `dist` folder to any static host (e.g. GitHub Pages, Netlify, Vercel). Ensure `sw.js` is served from the site root for PWA features.
