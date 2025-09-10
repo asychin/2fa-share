@@ -41,47 +41,15 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return
   const url = new URL(request.url)
 
-  // Serve manifest dynamically (name, colors, start_url)
-  if (url.pathname === '/manifest.webmanifest') {
+  // Serve the stored launch URL for the app to read at boot
+  if (url.pathname === LAUNCH_URL_KEY) {
     event.respondWith((async () => {
       try {
-        // Always fetch the base manifest from public
-        let manifest
-        try {
-          const res = await fetch('/manifest.webmanifest', { cache: 'no-cache' })
-          manifest = await res.json()
-        } catch {
-          manifest = { display: 'standalone', scope: '/', start_url: '/' }
-        }
-        const clientList = await self.clients.matchAll({ type: 'window' })
-        let dynamicName = null
-        let dynamicShortName = null
-        let dynamicTheme = null
-        let dynamicBg = null
-        for (const client of clientList) {
-          try {
-            const msgChan = new MessageChannel()
-            const ask = new Promise((resolve) => {
-              msgChan.port1.onmessage = (event) => resolve(event.data)
-            })
-            client.postMessage({ type: 'GET_PWA_METADATA' }, [msgChan.port2])
-            const data = await Promise.race([ask, new Promise((r) => setTimeout(() => r(null), 50))])
-            if (data && data.name) dynamicName = data.name
-            if (data && data.shortName) dynamicShortName = data.shortName
-            if (data && data.startUrl) manifest.start_url = data.startUrl
-            if (data && data.themeColor) dynamicTheme = data.themeColor
-            if (data && data.backgroundColor) dynamicBg = data.backgroundColor
-          } catch {}
-        }
-        if (dynamicName) manifest.name = dynamicName
-        if (dynamicShortName || dynamicName) manifest.short_name = dynamicShortName || dynamicName
-        if (dynamicTheme) manifest.theme_color = dynamicTheme
-        if (dynamicBg) manifest.background_color = dynamicBg
-        const body = JSON.stringify(manifest)
-        return new Response(body, { headers: { 'Content-Type': 'application/manifest+json' } })
-      } catch {
-        return fetch(request)
-      }
+        const cache = await caches.open(CACHE_NAME)
+        const res = await cache.match(LAUNCH_URL_KEY)
+        if (res) return res
+      } catch {}
+      return new Response('', { status: 204 })
     })())
     return
   }

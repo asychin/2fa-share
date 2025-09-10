@@ -15,6 +15,21 @@ if ('serviceWorker' in navigator) {
 
 async function bootstrap() {
   if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) {
+    // Try to get launch URL from Service Worker cache (shared between Safari and standalone)
+    try {
+      const res = await fetch('/__pwa_launch_url__', { cache: 'no-store' })
+      if (res.ok) {
+        const launchUrl = (await res.text()).trim()
+        const isHttp = /^https?:\/\//i.test(launchUrl)
+        if (launchUrl && isHttp && launchUrl !== window.location.href) {
+          window.location.replace(launchUrl)
+          return
+        }
+      }
+    } catch {
+      // ignore
+    }
+    // Fallback to IndexedDB (may not be shared between Safari and standalone on iOS)
     try {
       const savedUrl = await idbGet<string>('pwa_install_start_url')
       if (savedUrl && savedUrl !== window.location.href) {
