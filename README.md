@@ -4,7 +4,8 @@
 
 A tiny, privacy-friendly TOTP (Time‑based One‑Time Password) generator. Paste a Base32 secret to instantly get rotating verification codes, a shareable link, and a QR code. Everything runs in your browser — no backend.
 
-> Add your screenshot here.
+<img width="436" height="913" alt="Screenshot" src="https://github.com/user-attachments/assets/49a9b4a6-d711-4c57-9939-c204ec1d85d0" />
+
 
 ## Features
 - Client‑side only: codes are generated locally (no data sent to a server)
