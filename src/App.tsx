@@ -269,7 +269,7 @@ function App() {
           <Stack gap={5}>
             <HStack justify="space-between" align="center" wrap="wrap" gap={3}>
               <HStack align="center" gap={2}>
-                <Image src="/icons/logo.png" alt="TOTP logo" boxSize={{ base: '18', md: '24' }} />
+                <Image src="/icons/logo.png" alt="TOTP logo" boxSize={{ base: '14', md: '18' }} />
                 <Heading size={{ base: 'md', md: 'lg' }}>Generator</Heading>
               </HStack>
               <HStack gap={3} align="center">
