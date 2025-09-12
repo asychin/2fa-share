@@ -29,7 +29,9 @@ function tryPostSW(message: unknown) {
     } else {
       navigator.serviceWorker?.getRegistration?.().then((reg) => reg?.active?.postMessage(message)).catch(() => {})
     }
-  } catch {}
+  } catch {
+    // Service worker communication failures are expected and should be ignored
+  }
 }
 
 function tryParseOtpauth(otpauth: string): Partial<{ secret: string; label: string; issuer: string; period: number; digits: number }> | null {
@@ -183,7 +185,7 @@ function App() {
     } catch {
       return ''
     }
-  }, [totp, tick])
+  }, [totp])
 
   const shareUrl = useMemo(() => {
     if (!validSecret) return ''
@@ -360,7 +362,7 @@ function App() {
         <HStack justify="center" gap={3} color="fg.muted">
           <Text>Made with</Text>
           <Text as="span" color="red.500">❤</Text>
-          <Link href="https://github.com/asychin/cheza-totp" target="_blank" rel="noopener noreferrer" aria-label="GitHub repository" display="inline-flex" alignItems="center" transition="all 0.2s" _hover={{ color: 'fg', transform: 'translateY(-1px)' }}>
+          <Link href="https://github.com/asychin/2fa-share" target="_blank" rel="noopener noreferrer" aria-label="GitHub repository" display="inline-flex" alignItems="center" transition="all 0.2s" _hover={{ color: 'fg', transform: 'translateY(-1px)' }}>
             <Icon as={FaGithub} boxSize="5" />
           </Link>
         </HStack>
