@@ -14,8 +14,8 @@ const BASE_URL = (import.meta.env.VITE_BASE_URL as string | undefined) || ''
 
 function absoluteUrl(relative: string) {
   try {
-    if (BASE_URL) return new URL(relative, BASE_URL).toString()
-    return new URL(relative, window.location.origin).toString()
+    const base = BASE_URL || window.location.origin
+    return new URL(relative, base).toString()
   } catch {
     return relative
   }
@@ -218,7 +218,14 @@ function App() {
 
   useEffect(() => {
     if (validSecret && shareUrl) {
-      window.history.replaceState(null, '', shareUrl)
+      // Always use relative path for replaceState to avoid cross-origin SecurityError
+      // when VITE_BASE_URL differs from the current origin
+      try {
+        const parsed = new URL(shareUrl)
+        window.history.replaceState(null, '', parsed.pathname + parsed.search)
+      } catch {
+        // ignore
+      }
     }
     // Inform SW so it can expose dynamic manifest fields
     tryPostSW({ type: 'SET_PWA_NAME', name: SITE_NAME })
