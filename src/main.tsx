@@ -4,6 +4,7 @@ import './index.css'
 import App from './App.tsx'
 import { ChakraProvider } from '@chakra-ui/react'
 import { ColorModeProvider } from './components/ui/color-mode.tsx'
+import { LocaleProvider } from './i18n/locale-provider.tsx'
 import system from './theme.ts'
 import { idbGet } from './utils/storage.ts'
 
@@ -45,7 +46,9 @@ async function bootstrap() {
     <StrictMode>
       <ChakraProvider value={system}>
         <ColorModeProvider>
-          <App />
+          <LocaleProvider>
+            <App />
+          </LocaleProvider>
         </ColorModeProvider>
       </ChakraProvider>
     </StrictMode>,

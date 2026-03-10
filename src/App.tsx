@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Box, Center, Container, Heading, HStack, Icon, IconButton, Input, Link, Stack, Text, VStack, Clipboard, Progress, QrCode, Switch, Image } from '@chakra-ui/react'
 import * as OTPAuth from 'otpauth'
 import { useColorMode } from './components/ui/color-mode.tsx'
-import { FaGithub, FaShareAlt, FaRegLightbulb } from 'react-icons/fa'
+import { useLocale } from './i18n/locale-provider.tsx'
+import { FaGithub, FaShareAlt, FaRegLightbulb, FaGlobe } from 'react-icons/fa'
 import { idbSet } from './utils/storage.ts'
 
 const DEFAULT_NAME = import.meta.env.VITE_SITE_NAME || 'TOTP Generator'
@@ -141,6 +142,12 @@ function useTick(periodSeconds: number) {
   return seconds % periodSeconds
 }
 
+const CYRILLIC_RE = /[\u0400-\u04FF]/g
+
+function stripCyrillic(value: string): string {
+  return value.replace(CYRILLIC_RE, '')
+}
+
 function App() {
   const initial = parseParams()
   const [secret, setSecret] = useState<string>(initial.secret || '')
@@ -149,6 +156,19 @@ function App() {
   const [period, setPeriod] = useState<number>(initial.period || 30)
   const [digits, setDigits] = useState<number>(initial.digits || 6)
   const { toggleColorMode } = useColorMode()
+  const { locale, setLocale, t } = useLocale()
+
+  const handleSecretChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setSecret(stripCyrillic(e.target.value))
+  }, [])
+
+  const handleLabelChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setLabel(stripCyrillic(e.target.value))
+  }, [])
+
+  const handleIssuerChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setIssuer(stripCyrillic(e.target.value))
+  }, [])
 
   const validSecret = useMemo(() => {
     try {
@@ -273,46 +293,57 @@ function App() {
                 <Image src="/icons/logo.png" alt="TOTP logo" boxSize={{ base: '44px', md: '48px' }} />
                 <Heading size={{ base: 'md', md: 'lg' }}>Generator</Heading>
               </HStack>
-              <HStack gap={3} align="center">
-                <Icon as={FaRegLightbulb} color="fg.muted" boxSize="5" />
-                <Switch.Root onCheckedChange={() => toggleColorMode()} size="sm" colorPalette="teal">
-                  <Switch.HiddenInput />
-                  <Switch.Control transform="rotate(90deg)" transformOrigin="center">
-                    <Switch.Thumb />
-                  </Switch.Control>
-                  <Switch.Label srOnly>Theme</Switch.Label>
-                </Switch.Root>
-              </HStack>
+                <HStack gap={3} align="center">
+                  <IconButton
+                    aria-label="Toggle language"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setLocale(locale === 'en' ? 'ru' : 'en')}
+                  >
+                    <HStack gap={1}>
+                      <Icon as={FaGlobe} boxSize="4" />
+                      <Text fontSize="xs" fontWeight="bold">{locale.toUpperCase()}</Text>
+                    </HStack>
+                  </IconButton>
+                  <Icon as={FaRegLightbulb} color="fg.muted" boxSize="5" />
+                  <Switch.Root onCheckedChange={() => toggleColorMode()} size="sm" colorPalette="teal">
+                    <Switch.HiddenInput />
+                    <Switch.Control transform="rotate(90deg)" transformOrigin="center">
+                      <Switch.Thumb />
+                    </Switch.Control>
+                    <Switch.Label srOnly>{t.theme}</Switch.Label>
+                  </Switch.Root>
+                </HStack>
             </HStack>
-            <Text color="fg.muted" textAlign="center">Paste a Base32 secret. The link and QR are generated automatically. No database is used.</Text>
+            <Text color="fg.muted" textAlign="center">{t.description}</Text>
 
             <Stack p={4} gap={3} borderWidth="1px" borderRadius="md">
-              <Input placeholder="Secret (Base32)" value={secret} onChange={(e) => setSecret(e.target.value)} />
+              <Input placeholder={t.secretPlaceholder} value={secret} onChange={handleSecretChange} />
               <Stack direction={{ base: 'column', sm: 'row' }} gap={3}>
-                <Input placeholder="Label" value={label} onChange={(e) => setLabel(e.target.value)} />
-                <Input placeholder="Issuer" value={issuer} onChange={(e) => setIssuer(e.target.value)} />
+                <Input placeholder={t.labelPlaceholder} value={label} onChange={handleLabelChange} />
+                <Input placeholder={t.issuerPlaceholder} value={issuer} onChange={handleIssuerChange} />
               </Stack>
               <Stack direction={{ base: 'column', sm: 'row' }} gap={3}>
-                <Input type="number" min={10} max={120} step={1} placeholder="Period (sec)" value={period} onChange={(e) => setPeriod(Number(e.target.value || 30))} />
-                <Input type="number" min={4} max={10} step={1} placeholder="Digits" value={digits} onChange={(e) => setDigits(Number(e.target.value || 6))} />
+                <Input type="number" min={10} max={120} step={1} placeholder={t.periodPlaceholder} value={period} onChange={(e) => setPeriod(Number(e.target.value || 30))} />
+                <Input type="number" min={4} max={10} step={1} placeholder={t.digitsPlaceholder} value={digits} onChange={(e) => setDigits(Number(e.target.value || 6))} />
               </Stack>
             </Stack>
 
             <Stack p={4} gap={4} align="center" borderWidth="1px" borderRadius="md">
-              <Text fontWeight="medium">Status: {validSecret ? 'valid secret' : 'Paste a secret'}</Text>
+              <Text fontWeight="medium">{validSecret ? t.statusValid : t.statusPaste}</Text>
               {validSecret && (
                 <>
                   <Clipboard.Root value={code}>
                     <HStack w="full" gap={2} align="center">
-                      <Heading size={{ base: 'xl', md: '2xl' }} letterSpacing={4}>{code || '— — — — — —'}</Heading>
+                      <Heading size={{ base: 'xl', md: '2xl' }} letterSpacing={4}>{code || t.codePlaceholder}</Heading>
                       <Clipboard.Trigger asChild>
-                        <IconButton aria-label="Copy code" variant="surface" size="sm">
+                        <IconButton aria-label={t.copyCode} variant="surface" size="sm">
                           <Clipboard.Indicator />
                         </IconButton>
                       </Clipboard.Trigger>
                     </HStack>
                   </Clipboard.Root>
-                  <Text color="fg.muted">updates in {remaining}s</Text>
+                  <Text color="fg.muted">{t.updatesIn(remaining)}</Text>
                   <Progress.Root w="full" value={remainingPercent} colorPalette="teal" variant="subtle">
                     <Progress.Track borderRadius="full">
                       <Progress.Range />
@@ -331,11 +362,11 @@ function App() {
                         </Clipboard.Input>
                         <HStack gap={2} w="96px" justify="flex-start" flexShrink={0}>
                           <Clipboard.Trigger asChild>
-                            <IconButton aria-label="Copy link" variant="surface" size="sm">
+                            <IconButton aria-label={t.copyLink} variant="surface" size="sm">
                               <Clipboard.Indicator />
                             </IconButton>
                           </Clipboard.Trigger>
-                          <IconButton aria-label="Share" variant="surface" size="sm" onClick={handleNativeShare} disabled={!navigator.share}>
+                          <IconButton aria-label={t.share} variant="surface" size="sm" onClick={handleNativeShare} disabled={!navigator.share}>
                             <FaShareAlt />
                           </IconButton>
                         </HStack>
@@ -349,7 +380,7 @@ function App() {
                         </Clipboard.Input>
                         <HStack gap={2} w="96px" justify="flex-start" flexShrink={0}>
                           <Clipboard.Trigger asChild>
-                            <IconButton aria-label="Copy otpauth" variant="surface" size="sm">
+                            <IconButton aria-label={t.copyOtpauth} variant="surface" size="sm">
                               <Clipboard.Indicator />
                             </IconButton>
                           </Clipboard.Trigger>
@@ -367,7 +398,7 @@ function App() {
       </Center>
       <Box as="footer" py={5} borderTopWidth="1px">
         <HStack justify="center" gap={3} color="fg.muted">
-          <Text>Made with</Text>
+          <Text>{t.madeWith}</Text>
           <Text as="span" color="red.500">❤</Text>
           <Link href="https://github.com/asychin/2fa-share" target="_blank" rel="noopener noreferrer" aria-label="GitHub repository" display="inline-flex" alignItems="center" transition="all 0.2s" _hover={{ color: 'fg', transform: 'translateY(-1px)' }}>
             <Icon as={FaGithub} boxSize="5" />
