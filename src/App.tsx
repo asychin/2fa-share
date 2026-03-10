@@ -85,7 +85,7 @@ function parseParams(): { secret?: string; label?: string; issuer?: string; peri
     }
     // Try otpauth inside shared text or extract secret=...
     if (!secret && sharedText) {
-      const matchOtpauth = sharedText.match(/otpauth:\/\/[\^?\s]+/)
+      const matchOtpauth = sharedText.match(/otpauth:\/\/[^\s]+/)
       if (matchOtpauth) {
         const parsed = tryParseOtpauth(matchOtpauth[0])
         if (parsed?.secret) {
@@ -185,7 +185,7 @@ function App() {
     } catch {
       return ''
     }
-  }, [totp])
+  }, [totp, tick])
 
   const shareUrl = useMemo(() => {
     if (!validSecret) return ''
